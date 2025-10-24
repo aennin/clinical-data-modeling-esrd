@@ -1,0 +1,161 @@
+---
+title: "STAT 6640 Final Project"
+author: "Bobby Shields"
+date: "2025-04-15"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# EDA
+
+```{r, message=FALSE}
+library(tidyverse)
+setwd("/Users/augustineennin/Desktop")
+
+esrd = read.csv("esrd.csv")
+
+head(esrd)
+esrd = esrd %>% 
+  mutate_at(vars(acctype, female, racegrp, smokegrp, dx_diab), as.factor)
+summary(esrd)
+```
+
+```{r}
+esrd.long = esrd %>% 
+  pivot_longer(cols = 13:16,
+               names_to = "Time",
+               values_to = "eGFR") %>% 
+  mutate(Time = case_when(
+    Time == "eGFR7" ~ 7,
+    Time == "eGFR20" ~ 20,
+    Time == "eGFR90" ~ 90,
+    Time == "eGFR150" ~ 150,
+  ))
+head(esrd.long)
+```
+
+```{r, message=FALSE}
+acctype.result = esrd.long %>% 
+  group_by(acctype, Time) %>% 
+  summarise(mean(eGFR))
+acctype.result
+
+ggplot(acctype.result, aes(x = Time, y =`mean(eGFR)`, color = acctype)) +
+geom_point() +
+geom_line(linewidth = 1) +
+scale_color_discrete(name = "Access Type", labels = c("Standard", "Gast", "Venous")) +
+labs(title = 'Mean eGFR for each Access Type', x = 'Time',y = 'Mean eGFR')
+```
+
+```{r,message=FALSE}
+race.result = esrd.long %>% 
+  group_by(racegrp, Time) %>% 
+  summarise(mean(eGFR))
+race.result
+
+ggplot(race.result, aes(x = Time, y =`mean(eGFR)`, color = racegrp)) +
+geom_point() +
+geom_line(linewidth = 1) +
+scale_color_discrete(name = "Race", labels = c("White", "AA", "Other")) +
+labs(title = 'Mean eGFR for each Race', x = 'Time',y = 'Mean eGFR')
+```
+
+```{r, message=FALSE}
+diab.result = esrd.long %>% 
+  group_by(dx_diab, Time) %>% 
+  summarise(mean(eGFR))
+diab.result
+
+ggplot(diab.result, aes(x = Time, y =`mean(eGFR)`, color = dx_diab)) +
+geom_point() +
+geom_line(linewidth = 1) +
+scale_color_discrete(name = "Diabetes Status", labels = c("Type I", "Type II")) +
+labs(title = 'Mean eGFR for each Diabetes Type', x = 'Time',y = 'Mean eGFR')
+```
+
+```{r, message=FALSE}
+sex.result = esrd.long %>% 
+  group_by(female, Time) %>% 
+  summarise(mean(eGFR))
+sex.result
+
+ggplot(sex.result, aes(x = Time, y =`mean(eGFR)`, color = female)) +
+geom_point() +
+geom_line(linewidth = 1) +
+scale_color_discrete(name = "Gender", labels = c("Male", "Female")) +
+labs(title = 'Mean eGFR for each Gender', x = 'Time',y = 'Mean eGFR')
+```
+
+```{r, message=FALSE}
+smoke.result = esrd.long %>% 
+  group_by(smokegrp, Time) %>% 
+  summarise(mean(eGFR))
+smoke.result
+
+ggplot(smoke.result, aes(x = Time, y =`mean(eGFR)`, color = smokegrp)) +
+geom_point() +
+geom_line(linewidth = 1) +
+scale_color_discrete(name = "Smoking Status",
+                     labels = c("Never Smoked", "Former Smoker", "Current Smoker")) +
+labs(title = 'Mean eGFR for each Smoking Status', x = 'Time',y = 'Mean eGFR')
+```
+
+```{r}
+hist(esrd$eGFR7)
+hist(log(esrd$eGFR7))
+```
+
+# Research Question 1
+
+```{r}
+q1.fit = lm(log(eGFR7) ~ acctype + age_ssd + acctype:racegrp, 
+            data = esrd)
+summary(q1.fit)
+```
+
+# Research Question 2
+
+```{r}
+time.result = esrd.long %>% 
+  group_by(Time) %>% 
+  summarise(mean(eGFR))
+ggplot(time.result, aes(x = Time, y =`mean(eGFR)`)) +
+geom_point() +
+geom_line(linewidth = 1) +
+labs(title = 'Mean eGFR vs. Time', x = 'Time',y = 'Mean eGFR')
+```
+
+```{r, message=FALSE}
+library(nlme)
+esrd.long$timePlus = esrd.long$Time * as.numeric(esrd.long$Time > 20)
+head(esrd.long)
+```
+
+```{r}
+fit.lme1 = lme(fixed = eGFR ~ acctype + age_ssd + Time + timePlus + acctype:racegrp ,
+              random = ~ Time | usrds_id,
+              data = esrd.long,
+              control = lmeControl(
+                maxIter = 100,
+                msMaxIter = 100,
+                opt = "optim"
+              ),
+              method = "ML")
+summary(fit.lme1)
+```
+
+```{r}
+fit.lme2 = lme(fixed = eGFR ~ acctype + age_ssd + Time + timePlus + acctype:racegrp ,
+              random = ~ 1 | usrds_id,
+              data = esrd.long,
+              control = lmeControl(
+                maxIter = 100,
+                msMaxIter = 100,
+                opt = "optim"
+              ),
+              method = "ML")
+summary(fit.lme2)
+```
